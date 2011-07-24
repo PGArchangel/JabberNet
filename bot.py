@@ -2,19 +2,26 @@
 
 import sys,os,xmpp,time,re,subprocess
 
+import config
 
-def loadConfig(filename):
-	import ConfigParser
-	config = ConfigParser.ConfigParser()
-	config.read(filename)
-	jid = config.get('connection', 'jid')
-	password = config.get('connection', 'password')
-	return {'jid':jid,'password':password}
-	
-config = loadConfig('config.ini');
+sys.path.append('units')
+
+conf=config.conf
+def parseMessage(s):
+	if ( s != None ):
+		re_mess=re.compile(r"([^ ]+)")
+		ss=re_mess.findall(s)
+		print ss;
+		if (ss[0] in config.units):
+			unit=__import__(''+ss[0])
+			if (ss[1] in unit.allowed):
+				plugin = getattr(unit,ss[1])
+				return plugin(ss[2:])
 
 
-jid = xmpp.JID(config['jid'])
+
+
+jid = xmpp.JID(conf['jid'])
 bot = xmpp.Client(jid.getDomain(),debug=[])
 
 conres=bot.connect()
@@ -24,7 +31,7 @@ if not conres:
 	sys.exit(1)
 
 
-authres=bot.auth(jid.getNode(),config['password'],jid.getResource())
+authres=bot.auth(jid.getNode(),conf['password'],jid.getResource())
 if not authres:
 	print "Unable to authorize on %s - check login/password."
 	sys.exit(1)
@@ -42,20 +49,16 @@ def message(conn,mess):
 	global bot
 #	print mess.getBody()
 	s=mess.getBody()
-	if ( s != None ):
-		re_mess=re.compile(r"([^ ]+)")
-		ss=re_mess.findall(s);
-		if (ss[0]=='getProfile'):
-			out=client_getProfile(ss[1]);
-			for line in out:
-				print line
-			bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
+	print s
+	out=parseMessage(s)
+	bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
 
 bot.RegisterHandler('message',message)
 
-bot.send(xmpp.Message('pgarchangel@jabber.ru','hello'))
 
 bot.sendInitPresence()
+
+#bot.send(xmpp.Message('pgarchangel@jabber.ru','hello'))
 
 while bot.online:
 	try:
