@@ -4,7 +4,9 @@ import sys,os,xmpp,time,re,subprocess
 
 import config
 
-sys.path.append('units')
+#units=__import__('units')
+
+#.path.append('units')
 
 conf=config.conf
 def parseMessage(s):
@@ -12,8 +14,9 @@ def parseMessage(s):
 		re_mess=re.compile(r"([^ ]+)")
 		ss=re_mess.findall(s)
 		print ss;
+		unit=__import__('units.profiles')
 		if (ss[0] in config.units):
-			unit=__import__(''+ss[0])
+			unit=getattr(unit,ss[0])
 			if (ss[1] in unit.allowed):
 				plugin = getattr(unit,ss[1])
 				return plugin(ss[2:])

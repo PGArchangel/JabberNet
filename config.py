@@ -8,7 +8,8 @@ def loadUnitsList():
 	for unit in os.listdir('units/'):
 		if unit.endswith('.py'):
 			unit_name = unit[:-3]
-			units.append(unit_name)
+			if (unit_name != '__init__'):
+				units.append(unit_name)
 	return units
 
 
