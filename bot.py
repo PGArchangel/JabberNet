@@ -45,16 +45,10 @@ class daemon():
 			except:
 				return None
 			if (plugin_name in config.plugins['commands'].keys()):
-				if (config.plugins['commands'][plugin_name]==None):
-					unit=__import__('plugins.commands.'+plugin_name)
-					unit=getattr(unit,'commands')
-					unit=getattr(unit,plugin_name)
-					config.plugins['commands'][plugin_name]=unit
-				else:
-					unit=config.plugins['commands'][plugin_name]
+				unit=config.loadDynamicPlugin('commands',plugin_name)
 				if (command_name in unit.allowed):
-					plugin = getattr(unit,command_name)
-					return plugin(query)
+					command = getattr(unit,command_name)
+					return command(query)
 
 
 	def message(self, conn,mess):
@@ -101,10 +95,10 @@ class daemon():
 				client, name = sock.accept()
 				self.rsocks.append(client)
 			elif not `sock` in self.senders.keys():
-				sender = sock.recv(1024)
-				print sender
-				sock.send('Sender OK')
-				self.senders[`sock`] = sender
+				plugin_name = sock.recv(1024)
+				print plugin_name
+#				if (plugin_name in config.plugins['socket']):
+					
 			else:
 				message = sock.recv(1024)
 				sock.send('Message OK')

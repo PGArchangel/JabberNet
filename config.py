@@ -2,6 +2,17 @@
 
 import os
 
+def loadDynamicPlugin(ptype,pname):
+	if (plugins[ptype][pname]==None):
+		unit=__import__('plugins.'+ptype+'.'+pname)
+		unit=getattr(unit,ptype)
+		unit=getattr(unit,pname)
+		plugins[ptype][pname]=unit
+	else:
+		unit=plugins[ptype][pname]
+	return unit
+
+
 def loadUnitsList(d):
 	units={}
 	for unit in os.listdir('plugins/'+d+'/'):
