@@ -2,7 +2,7 @@
 
 import os
 
-def loadDynamicPlugin(ptype,pname):
+def getDynamicPlugin(ptype,pname):
 	if (plugins[ptype][pname]==None):
 		unit=__import__('plugins.'+ptype+'.'+pname)
 		unit=getattr(unit,ptype)
@@ -11,11 +11,16 @@ def loadDynamicPlugin(ptype,pname):
 	else:
 		unit=plugins[ptype][pname]
 	return unit
+	
+def execPluginFunction(unit,fname,query=None):
+	if (fname in unit.allowed):
+		command = getattr(unit,fname)
+		return command(query)
 
 
-def loadUnitsList(d):
+def loadUnitsList(ptype):
 	units={}
-	for unit in os.listdir('plugins/'+d+'/'):
+	for unit in os.listdir('plugins/'+ptype+'/'):
 		if unit.endswith('.py'):
 			unit_name = unit[:-3]
 			if (unit_name != '__init__'):

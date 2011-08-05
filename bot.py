@@ -45,10 +45,8 @@ class daemon():
 			except:
 				return None
 			if (plugin_name in config.plugins['commands'].keys()):
-				unit=config.loadDynamicPlugin('commands',plugin_name)
-				if (command_name in unit.allowed):
-					command = getattr(unit,command_name)
-					return command(query)
+				unit=config.getDynamicPlugin('commands',plugin_name)
+				return config.execPluginFunction(unit,command_name,query)
 
 
 	def message(self, conn,mess):
