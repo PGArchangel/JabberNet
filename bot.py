@@ -1,73 +1,112 @@
 #!/usr/bin/python
 
-import sys,os,xmpp,time,re,subprocess
+import sys,os,xmpp,time,re,subprocess,json
 
 import config
 
+import socket
+import select
+
 #units=__import__('units')
 
-#.path.append('units')
+#sys.path.append('units')
 
-conf=config.conf
-def parseMessage(s):
-	if ( s != None ):
-		re_mess=re.compile(r"([^ ]+)")
-		ss=re_mess.findall(s)
-		print ss;
-		unit=__import__('units.profiles')
-		if (ss[0] in config.units):
-			unit=getattr(unit,ss[0])
-			if (ss[1] in unit.allowed):
-				plugin = getattr(unit,ss[1])
-				return plugin(ss[2:])
-
-
-
-
-jid = xmpp.JID(conf['jid'])
-bot = xmpp.Client(jid.getDomain(),debug=[])
-
-conres=bot.connect()
-
-if not conres:
-	print "Unable to connect to server %s!"%server
-	sys.exit(1)
-
-
-authres=bot.auth(jid.getNode(),conf['password'],jid.getResource())
-if not authres:
-	print "Unable to authorize on %s - check login/password."
-	sys.exit(1)
-if authres<>'sasl':
-	print "Warning: unable to perform SASL auth os %s. Old authentication method used!"%server
-
-bot.online = 1
-
-def client_getProfile(ip):
-	proc=subprocess.Popen("ssh root@"+ip+" 'echo dfdf11>/data/test;exit;';echo '111';",shell=True,stdout=subprocess.PIPE)
-	proc.wait()
-	return proc.stdout.readlines()
-
-def message(conn,mess):
-	global bot
-#	print mess.getBody()
-	s=mess.getBody()
-	print s
-	out=parseMessage(s)
-	bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
-
-bot.RegisterHandler('message',message)
+class daemon():
+	def __init__(self):
+		self.conf = config.conf
+		self.jid = xmpp.JID(self.conf['jid'])
+		self.bot = xmpp.Client(self.jid.getDomain(),debug=[])
+		conres=self.bot.connect()
+		if not conres:
+			print "Unable to connect to server %s!"%(self.jid.getDomain())
+			sys.exit(1)
+		authres=self.bot.auth(self.jid.getNode(),self.conf['password'],self.jid.getResource())
+		if not authres:
+			print "Unable to authorize on %s - check login/password."%(self.jid.getDomain())
+			sys.exit(1)
+		if authres<>'sasl':
+			print "Warning: unable to perform SASL auth os %s. Old authentication method used!"%server
+		self.bot.online = 1
+		self.bot.RegisterHandler('message',self.message)
+		self.bot.sendInitPresence()
+		
+		self.socketInit()
+	
+	
+	def parseMessage(self,s):
+		if ( s != None ):
+			re_mess=re.compile(r"^([^ ]+) ([^ ]+) ?(.*)$")
+			ss=re_mess.findall(s)
+			print ss;
+			unit=__import__('units.profiles')
+			print ss[0]
+			print config.units
+			if (ss[0][0] in config.units):
+				print 'module is in list'
+				unit=getattr(unit,ss[0][0])
+				if (ss[0][1] in unit.allowed):
+					plugin = getattr(unit,ss[0][1])
+					return plugin(ss[0][2:])
 
 
-bot.sendInitPresence()
+	def message(self, conn,mess):
+	#	print mess.getBody()
+		s=mess.getBody()
+		print s
+		out=self.parseMessage(s)
+		self.bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
+		
+	def run(self):
+		while self.bot.online:
+			try:
+				print 'bot.Process(1)'
+				self.bot.Process(1)
+				self.socketProcess()
+			except KeyboardInterrupt:
+				self.bot.disconnect()
+				break
 
-#bot.send(xmpp.Message('pgarchangel@jabber.ru','hello'))
+	def socketInit(self):
+		self.serversocket=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		if (self.conf['socket']['port']):
+			self.serversocket.bind(('',self.conf['socket']['port']))
+		else:
+			self.serversocket.bind(self.conf['sockfilename'])
+		self.serversocket.setblocking(0);
+		self.serversocket.listen(1)
+		self.rsocks = []
+		self.wsocks = []
+		self.rsocks.append(self.serversocket)
+		self.senders = {}
+	
+	def socketProcess(self):
+		print 'Checking'
+		try:
+			reads, writes, errs = select.select(self.rsocks, self.wsocks, [], 0)
+			print 'Checking tried...'
+		except:
+			print 'Except...'
+			return
+		for sock in reads:
+			if sock == self.serversocket:
+				print sock
+				client, name = sock.accept()
+				self.rsocks.append(client)
+			elif not `sock` in self.senders.keys():
+				sender = sock.recv(1024)
+				print sender
+				sock.send('Sender OK')
+				self.senders[`sock`] = sender
+			else:
+				message = sock.recv(1024)
+				sock.send('Message OK')
+				print message
+				self.rsocks.remove(sock)
+				del self.senders[`sock`]
+ 
 
-while bot.online:
-	try:
-		bot.Process(1)
-	except KeyboardInterrupt:
-		bot.disconnect()
-		break
+daemon = daemon()
+
+daemon.run()
 
 

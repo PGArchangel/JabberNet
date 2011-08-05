@@ -19,7 +19,8 @@ def loadConfig(filename):
 	config.read(filename)
 	jid = config.get('connection', 'jid')
 	password = config.get('connection', 'password')
-	return {'jid':jid,'password':password}
+	sockfilename = config.get('socket', 'sockfilename')
+	return {'jid':jid,'password':password,'socket':{'sockfilename':sockfilename,'port':int(config.get('socket', 'port'))}}
 	
 conf = loadConfig('config.ini')
 
