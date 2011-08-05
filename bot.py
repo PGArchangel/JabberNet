@@ -7,6 +7,7 @@ import config
 import socket
 import select
 
+
 #units=__import__('units')
 
 #sys.path.append('units')
@@ -35,18 +36,25 @@ class daemon():
 	
 	def parseMessage(self,s):
 		if ( s != None ):
-			re_mess=re.compile(r"^([^ ]+) ([^ ]+) ?(.*)$")
-			ss=re_mess.findall(s)
-			print ss;
-			unit=__import__('units.profiles')
-			print ss[0]
-			print config.units
-			if (ss[0][0] in config.units):
-				print 'module is in list'
-				unit=getattr(unit,ss[0][0])
-				if (ss[0][1] in unit.allowed):
-					plugin = getattr(unit,ss[0][1])
-					return plugin(ss[0][2:])
+			re_mess=re.compile(r"^%([^ ]+) ([^ ]+) ?(.*)$")
+			try:
+				ss=re_mess.findall(s)
+				plugin_name=ss[0][0]
+				command_name=ss[0][1]
+				query=ss[0][2:]
+			except:
+				return None
+			if (plugin_name in config.plugins['commands'].keys()):
+				if (config.plugins['commands'][plugin_name]==None):
+					unit=__import__('plugins.commands.'+plugin_name)
+					unit=getattr(unit,'commands')
+					unit=getattr(unit,plugin_name)
+					config.plugins['commands'][plugin_name]=unit
+				else:
+					unit=config.plugins['commands'][plugin_name]
+				if (command_name in unit.allowed):
+					plugin = getattr(unit,command_name)
+					return plugin(query)
 
 
 	def message(self, conn,mess):

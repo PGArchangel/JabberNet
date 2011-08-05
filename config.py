@@ -2,14 +2,13 @@
 
 import os
 
-units=[]
-def loadUnitsList():
-	units=[]
-	for unit in os.listdir('units/'):
+def loadUnitsList(d):
+	units={}
+	for unit in os.listdir('plugins/'+d+'/'):
 		if unit.endswith('.py'):
 			unit_name = unit[:-3]
 			if (unit_name != '__init__'):
-				units.append(unit_name)
+				units[unit_name] = None
 	return units
 
 
@@ -24,5 +23,6 @@ def loadConfig(filename):
 	
 conf = loadConfig('config.ini')
 
-
-units=loadUnitsList()
+plugins={}
+plugins['commands']=loadUnitsList('commands')
+plugins['socket']=loadUnitsList('socket')
