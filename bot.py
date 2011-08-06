@@ -34,7 +34,7 @@ class daemon():
 		self.socketInit()
 	
 	
-	def parseMessage(self,s):
+	def parseMessage(self,s,ptype):
 		if ( s != None ):
 			re_mess=re.compile(r"^%([^ ]+) ([^ ]+) ?(.*)$")
 			try:
@@ -44,8 +44,8 @@ class daemon():
 				query=ss[0][2:]
 			except:
 				return None
-			if (plugin_name in config.plugins['commands'].keys()):
-				unit=config.getDynamicPlugin('commands',plugin_name)
+			if (plugin_name in config.plugins[ptype].keys()):
+				unit=config.getDynamicPlugin(ptype,plugin_name)
 				return config.execPluginFunction(unit,command_name,query)
 
 
@@ -53,8 +53,9 @@ class daemon():
 	#	print mess.getBody()
 		s=mess.getBody()
 		print s
-		out=self.parseMessage(s)
-		self.bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
+		out=self.parseMessage(s,'commands')
+		if ( out != None ):
+			self.bot.send(xmpp.Message('pgarchangel@jabber.ru',out))
 		
 	def run(self):
 		while self.bot.online:
@@ -63,6 +64,7 @@ class daemon():
 				self.bot.Process(1)
 				self.socketProcess()
 			except KeyboardInterrupt:
+				self.socketDisconnect()
 				self.bot.disconnect()
 				break
 
@@ -72,12 +74,19 @@ class daemon():
 			self.serversocket.bind(('',self.conf['socket']['port']))
 		else:
 			self.serversocket.bind(self.conf['sockfilename'])
-		self.serversocket.setblocking(0);
+		self.serversocket.setblocking(0)
 		self.serversocket.listen(1)
 		self.rsocks = []
 		self.wsocks = []
 		self.rsocks.append(self.serversocket)
 		self.senders = {}
+	
+	def socketDisconnect(self):
+		self.rsocks=[]
+		try:
+			reads, writes, errs = select.select(self.rsocks, self.wsocks, [], 0)
+		except:
+			return
 	
 	def socketProcess(self):
 		print 'Checking'
@@ -89,20 +98,19 @@ class daemon():
 			return
 		for sock in reads:
 			if sock == self.serversocket:
-				print sock
 				client, name = sock.accept()
 				self.rsocks.append(client)
-			elif not `sock` in self.senders.keys():
-				plugin_name = sock.recv(1024)
-				print plugin_name
-#				if (plugin_name in config.plugins['socket']):
-					
 			else:
-				message = sock.recv(1024)
-				sock.send('Message OK')
-				print message
-				self.rsocks.remove(sock)
-				del self.senders[`sock`]
+				s = sock.recv(1024)
+				print s
+				if ( re.search('^exit',s) ):
+					print 'exiting..'
+					self.rsocks.remove(sock)
+				else:
+					out=self.parseMessage(s,'socket')
+					if ( out != None ):
+						sock.send(out)
+
  
 
 daemon = daemon()
