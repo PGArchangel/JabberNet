@@ -36,12 +36,17 @@ class daemon():
 	
 	def parseMessage(self,s,ptype):
 		if ( s != None ):
-			re_mess=re.compile(r"^%([^ ]+) ([^ ]+) ?(.*)$")
+			re_mess=re.compile(r"^%([^ ]+) ([^ ]+) ?(.*?)$")
 			try:
 				ss=re_mess.findall(s)
 				plugin_name=ss[0][0]
 				command_name=ss[0][1]
-				query=ss[0][2:]
+				query=ss[0][2]
+				query_l=re.compile(r"([^ =\r\n]+)=([^ \r\n]*)").findall(ss[0][2]);
+				query={}
+				for a in query_l:
+					query[a[0]]=a[1]
+				print query
 			except:
 				return None
 			if (plugin_name in config.plugins[ptype].keys()):
@@ -69,11 +74,16 @@ class daemon():
 				break
 
 	def socketInit(self):
-		self.serversocket=socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-		if (self.conf['socket']['port']):
+ 		self.serversocket=socket.socket(socket.AF_UNIX)
+		if ('port' in self.conf['socket'].keys()):
 			self.serversocket.bind(('',self.conf['socket']['port']))
 		else:
-			self.serversocket.bind(self.conf['sockfilename'])
+			try:
+				if os.path.exists(self.conf['socket']['sockfilename']):
+					os.unlink(self.conf['socket']['sockfilename'])
+			except:
+				raise 'error'
+			self.serversocket.bind(self.conf['socket']['sockfilename'])
 		self.serversocket.setblocking(0)
 		self.serversocket.listen(1)
 		self.rsocks = []
@@ -83,10 +93,11 @@ class daemon():
 	
 	def socketDisconnect(self):
 		self.rsocks=[]
+		self.serversocket.close()
 		try:
-			reads, writes, errs = select.select(self.rsocks, self.wsocks, [], 0)
+			os.unlink(self.conf['socket']['sockfilename'])
 		except:
-			return
+			pass
 	
 	def socketProcess(self):
 		print 'Checking'
@@ -109,7 +120,10 @@ class daemon():
 				else:
 					out=self.parseMessage(s,'socket')
 					if ( out != None ):
-						sock.send(out)
+						try:
+							sock.send(out)
+						except:
+							self.rsocks.remove(sock)
 
  
 

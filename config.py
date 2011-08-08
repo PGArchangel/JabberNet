@@ -34,8 +34,17 @@ def loadConfig(filename):
 	config.read(filename)
 	jid = config.get('connection', 'jid')
 	password = config.get('connection', 'password')
-	sockfilename = config.get('socket', 'sockfilename')
-	return {'jid':jid,'password':password,'socket':{'sockfilename':sockfilename,'port':int(config.get('socket', 'port'))}}
+	c={'jid':jid,'password':password}
+	c['socket']={}
+	try:
+		c['socket']['sockfilename'] = config.get('socket', 'sockfilename')
+	except:
+		pass
+	try:
+		c['socket']['port'] = config.get('socket', 'port')
+	except:
+		pass
+	return c
 	
 conf = loadConfig('config.ini')
 
