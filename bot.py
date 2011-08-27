@@ -53,61 +53,116 @@ class daemon():
 			return 0
 		
 	def genId(self):
-		return 'jabbernet_'+str(++self._lastId)
+		i='jabbernet_'+str(self._lastId)
+		self._lastId+=1
+		return i
 	
 	def addToQueue(self,protocol,jfrom,mid,func,data):
 		self.queue[protocol][jfrom][mid]={'run':func,'data':data}
 	
-	def packData(self,data):
+	def packData(self,data,format='list'):
 		s=''
-		for k in data:
-			if (s!=''):
-				s+=' '
-			s+=k+'='+str(data[k])
-		return s;
+		if (format=='list'):
+			print data
+			for k in data:
+				if (s!=''):
+					s+=' '
+				s+=k+'='+str(data[k])
+		elif (format=='json'):
+			s=json.dumps(data)
+		return format+':'+s;
 	
-	def parseMessage(self,mess,ptype):
+	def unpackData(self,s,format='list'):
+		data=None
+		print s
+		f=re.search('^([\w\d_]+):(.*)',s)
+		if (f!=None):
+			format=f.group(1)
+			s=f.group(2)
+		if (format=='list'):
+			data_l=re.compile(r"([^ =\r\n]+)=([^ \r\n]*)").findall(s)
+			data={}
+			for a in data_l:
+				data[a[0]]=a[1]
+		elif (format=='json'):
+			data=json.loads(s)
+		return data
+						
+	def parseMessage(self,mess,ptype=None):
+		s=''
+
 		if (type(mess) is str):
 			s=mess
-		else:
+			ptype='other'
+		elif (isinstance(mess,xmpp.Message)):
 			s=mess.getBody()
-		if ( s != None ):
+			ptype='commands'
+		elif (isinstance(mess,config.socketMessage)):
+			s=mess.getBody()
+			ptype='socket'
+			
+		if (( s != None ) and (s!='')):
 			if (s[0]=='%'):
-				re_mess=re.compile(r"^%([^ ]+) *([^ ]+) *?(.*?)$")
+				re_mess=re.compile(r"^%([^ ]+) *([^ ]+) *(.*?)$")
 				try:
 					ss=re_mess.findall(s)
 					plugin_name=ss[0][0]
 					command_name=ss[0][1]
 					query=ss[0][2]
-					query_l=re.compile(r"([^ =\r\n]+)=([^ \r\n]*)").findall(ss[0][2])
-					query={}
-					for a in query_l:
-						query[a[0]]=a[1]
-					print query
+					query=self.unpackData(query)
 				except:
+					print "Can't parse message's data..."
 					return None
+				print "Loading "+plugin_name+" plugin..."
 				if (plugin_name in self.cfg.plugins[ptype].keys()):
+					print "Plugin found..."
 					unit=self.cfg.getDynamicPlugin(ptype,plugin_name)
-					return self.cfg.execPluginFunction(unit,command_name,s,query)
+					return self.cfg.execPluginFunction(unit,command_name,mess,query)
 			elif (s[0]=='@'):
-				pass
+#				try:
+					print "Answer found... "
+					ss=re.compile(r"^@([\d\w_]+)[\n\r]{1,2}(.+)").search(s)
+					print "Checking answer..."
+					print ss.group(1)
+					print self.queue
+					print self.queue['commands'][ss.group(1)]
+					if (ss.group(1) in self.queue['commands']):
+						print "Executing OnAnswer: "+ss.group(1)+' from '
+						data=self.unpackData(ss.group(2))
+						print data
+						print "Answers' data:"
+						print data
+						self.queue['commands'][ss.group(1)]['onanswer'](mess,data,self.queue['commands'][ss.group(1)]['data'])
+						del self.queue['commands'][ss.group(1)]
+#				except:
+#					pass
 				
 
-	def sendMessage(self,command,data,to):
+	def sendMessage(self,mess,onanswer=None):
 		out='';
-		if (type(data) is types.DictType):
-			out=self.PackData(data)
-		mess=xmpp.Message(command+to,out)
-		self.bot.send(mess)
+		if (isinstance(mess,xmpp.Message)):
+			mid=self.genId()
+			mess.setID(mid)
+			if (onanswer):
+				print "OnAnswer event registered: "+mid+' to '
+				self.queue['commands'][mid]={'onanswer':onanswer,'data':None}
+			print "Sending jabber message: "+mess.getBody()
+			self.bot.send(mess)
+		elif (isinstance(mess,config.socketMessage)):
+			print "Sending socket message: "+mess.getBody()
+			mess.send()
+		return 1
 
 	def message(self,conn,mess):
 	#	print mess.getBody()
 		s=mess.getBody()
-		print s
+		print "Message received: "+s
+		print "Sender: "
+		print mess.getFrom()
 		out=self.parseMessage(mess,'commands')
 		if (type(out)==str):
 			out=xmpp.Message(mess.getFrom(),out)
-		if ( out != None ):
+		elif ( isinstance(out,xmpp.Message) ):
 			self.bot.send(out)
 		
 	def run(self):
@@ -171,15 +226,20 @@ class daemon():
 				self.rsocks.append(client)
 			else:
 				s = sock.recv(1024)
-				print s
+				print "Socket message received: "+s
+				mess=config.socketMessage(s,sock)
 				if ( re.search('^exit',s) ):
 					print 'exiting..'
 					self.rsocks.remove(sock)
 				else:
-					out=self.parseMessage(s,'socket')
+					out=self.parseMessage(mess)
 					if ( out != None ):
 						try:
-							sock.send(out)
+							print "Sending answer on socket message..."
+							s=out
+							if (isinstance(out,config.socketMessage)):
+								s=out.getBody()
+							sock.send(s)
 						except:
 							self.rsocks.remove(sock)
 

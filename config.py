@@ -1,11 +1,31 @@
 #!/usr/bin/python
 
 import os
+import threading
+import xmpp
+import sys
+
+class socketMessage():
+	def __init__(self,s,socket=None):
+		self.message=s
+		self.socket=socket
+	
+	def send(self):
+		try:
+			self.socket.send(self.message)
+		except:
+			pass
+	
+	def getBody(self):
+		return self.message
 
 class configurator():
 	def __init__(self,daemon=None):
 		self.d=daemon
-		self.conf = self.loadConfig('config.ini')
+		self.configfile='config.ini'
+		if (len(sys.argv)>0):
+			self.configfile=sys.argv[1]
+		self.conf = self.loadConfig(self.configfile)
 
 		self.plugins={}
 		self.plugins['commands']=self.loadUnitsList('commands')
@@ -28,9 +48,21 @@ class configurator():
 		return unit
 	
 	def execPluginFunction(self,unit,fname,mess,query=None):
-		if (fname in unit.p.allowed):
+		if (unit.p.allowed.has_key(fname)):
+			print "Executing `"+fname+"` function"
 			command = getattr(unit.p,fname)
-			return command(mess,query)
+			res=None
+			if (unit.p.allowed[fname].has_key('thread')and(unit.p.allowed[fname]['thread'])):
+				t=threading.Thread(target=command,args=(mess,query))
+				t.start()
+			else:
+				res=command(mess,query)
+			return res
+		else:
+			print "Function `"+fname+"` is not allowed"
+
+
+			
 
 
 	def loadUnitsList(self,ptype):
