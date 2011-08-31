@@ -265,24 +265,28 @@ class daemon():
 				print ""
 				s = sock.recv(1024)
 				print "Socket message received: "+s
-				mess=config.socketMessage(s,sock)
-				if ( re.search('^exit',s) ):
-					print 'exiting..'
+				if (re.match(r"^[ \t\r\n]+$",s)):
 					self.rsocks.remove(sock)
 					del self.senders[sock]
-				else:
-					self.activity=self.activity+4+self.activity*0.1
-					out=self.parseMessage(mess,ptype)
-					if ( out != None ):
-						try:
-							print "Sending answer on socket message..."
-							s=out
-							if (isinstance(out,config.socketMessage)):
-								s=out.getBody()
-							sock.send(s)
-						except:
-							self.rsocks.remove(sock)
-							del self.senders[sock]
+				else:					
+					mess=config.socketMessage(s,sock)
+					if (( re.search('^exit',s) ) or (s=="")):
+						print 'exiting..'
+						self.rsocks.remove(sock)
+						del self.senders[sock]
+					else:
+						self.activity=self.activity+4+self.activity*0.1
+						out=self.parseMessage(mess,ptype)
+						if ( out != None ):
+							try:
+								print "Sending answer on socket message..."
+								s=out
+								if (isinstance(out,config.socketMessage)):
+									s=out.getBody()
+								sock.send(s)
+							except:
+								self.rsocks.remove(sock)
+								del self.senders[sock]
 
  
 
