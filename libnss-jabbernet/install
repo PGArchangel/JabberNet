@@ -1,0 +1,6 @@
+#!/bin/bash
+
+cp -f '/home/arch/nss-test/daemon.c' ./
+cp -f '/home/arch/nss-test/daemon.h' ./
+make
+cp ./libnss_jabbernet.so.2 /usr/lib/
