@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rm /usr/lib/libnss_jabbernet.so.2
