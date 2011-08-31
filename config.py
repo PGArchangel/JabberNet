@@ -30,6 +30,7 @@ class configurator():
 		self.plugins={}
 		self.plugins['commands']=self.loadUnitsList('commands')
 		self.plugins['socket']=self.loadUnitsList('socket')
+		self.plugins['localsocket']=self.loadUnitsList('localsocket')
 	
 	def getDynamicPlugin(self,ptype,pname):
 		if (self.plugins[ptype][pname]==None):
@@ -62,7 +63,8 @@ class configurator():
 			print "Function `"+fname+"` is not allowed"
 
 
-			
+	def getAdminJID(self):
+		return 'admin@server-arch.ati/bot'
 
 
 	def loadUnitsList(self,ptype):
@@ -88,7 +90,7 @@ class configurator():
 		except:
 			pass
 		try:
-			c['socket']['port'] = config.get('socket', 'port')
+			c['socket']['port'] = int(config.get('socket', 'port'))
 		except:
 			pass
 		return c

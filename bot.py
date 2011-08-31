@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 import sys,os,xmpp,time,re,subprocess,json
 
@@ -90,20 +91,27 @@ class daemon():
 						
 	def parseMessage(self,mess,ptype=None):
 		s=''
-
-		if (type(mess) is str):
+		if (ptype==None):
+			if (type(mess) is str):
+				ptype='other'
+			elif (isinstance(mess,xmpp.Message)):
+				ptype='commands'
+			elif (isinstance(mess,config.socketMessage)):
+				ptype='socket'
+			
+		if (ptype=='other'):
 			s=mess
-			ptype='other'
-		elif (isinstance(mess,xmpp.Message)):
+		elif (ptype=='commands'):
 			s=mess.getBody()
-			ptype='commands'
-		elif (isinstance(mess,config.socketMessage)):
+		elif (ptype=='socket'):
 			s=mess.getBody()
-			ptype='socket'
+		elif (ptype=='localsocket'):
+			s=mess.getBody()
+			
 			
 		if (( s != None ) and (s!='')):
 			if (s[0]=='%'):
-				re_mess=re.compile(r"^%([^ ]+) *([^ ]+) *(.*?)$")
+				re_mess=re.compile(r"^%([^ \r\n]+) *([^ ]*) *(.*?)$")
 				try:
 					ss=re_mess.findall(s)
 					plugin_name=ss[0][0]
@@ -139,6 +147,7 @@ class daemon():
 				
 
 	def sendMessage(self,mess,onanswer=None):
+		self.activity=4+self.activity*0.3
 		out='';
 		if (isinstance(mess,xmpp.Message)):
 			mid=self.genId()
@@ -158,6 +167,7 @@ class daemon():
 		s=mess.getBody()
 		print "Message received: "+s
 		print "Sender: "
+		self.activity+=4+self.activity*0.1
 		print mess.getFrom()
 		out=self.parseMessage(mess,'commands')
 		if (type(out)==str):
@@ -167,11 +177,13 @@ class daemon():
 		
 	def run(self):
 		self.jinit_c=0
+		self.sleep_time=1.0
+		self.activity=1
 		while 1:
 			try:
 				if (self.jconnected):
 					print 'bot.Process(1)'
-					self.bot.Process(1)
+					self.bot.Process(self.sleep_time)
 				else:
 					if (self.jinit_c>10):
 						print 'Try connect to jabber again...'
@@ -184,29 +196,45 @@ class daemon():
 				self.socketDisconnect()
 				self.bot.disconnect()
 				break
+			self.sleep_time=1/float(self.activity)
+			self.activity=self.activity-1
+			if (self.activity<1):
+				self.activity=1
+			if (self.activity>1000):
+				self.activity=1000
+			print "Время ожидания: %f"%self.sleep_time
+			print "Активность приложения:"
+			print self.activity
 
 	def socketInit(self):
- 		self.serversocket=socket.socket(socket.AF_UNIX)
+		self.rsocks = []
+		self.wsocks = []
 		if ('port' in self.conf['socket'].keys()):
+	 		self.serversocket=socket.socket(socket.AF_INET)
+			self.serversocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 			self.serversocket.bind(('',self.conf['socket']['port']))
-		else:
+			self.serversocket.setblocking(0)
+			self.serversocket.listen(5)
+			self.rsocks.append(self.serversocket)
+		if ('sockfilename' in self.conf['socket'].keys()):
 			try:
 				if os.path.exists(self.conf['socket']['sockfilename']):
 					os.unlink(self.conf['socket']['sockfilename'])
 			except:
 				raise 'error'
-			self.serversocket.bind(self.conf['socket']['sockfilename'])
-		self.serversocket.setblocking(0)
-		self.serversocket.listen(1)
-		self.rsocks = []
-		self.wsocks = []
-		self.rsocks.append(self.serversocket)
+	 		self.localsocket=socket.socket(socket.AF_UNIX)
+			self.localsocket.bind(self.conf['socket']['sockfilename'])
+			self.localsocket.setblocking(0)
+			self.localsocket.listen(5)
+			self.rsocks.append(self.localsocket)
+
 		self.senders = {}
 		return 1
 	
 	def socketDisconnect(self):
 		self.rsocks=[]
 		self.serversocket.close()
+		self.localsocket.close()
 		try:
 			os.unlink(self.conf['socket']['sockfilename'])
 		except:
@@ -224,15 +252,27 @@ class daemon():
 			if sock == self.serversocket:
 				client, name = sock.accept()
 				self.rsocks.append(client)
+				self.senders[client]='socket'
+				self.activity+=20
+			elif sock == self.localsocket:
+				client, name = sock.accept()
+				self.rsocks.append(client)
+				self.senders[client]='localsocket'
+				self.activity+=20			
 			else:
+				ptype=self.senders[sock]
+				print ptype
+				print ""
 				s = sock.recv(1024)
 				print "Socket message received: "+s
 				mess=config.socketMessage(s,sock)
 				if ( re.search('^exit',s) ):
 					print 'exiting..'
 					self.rsocks.remove(sock)
+					del self.senders[sock]
 				else:
-					out=self.parseMessage(mess)
+					self.activity=self.activity+4+self.activity*0.1
+					out=self.parseMessage(mess,ptype)
 					if ( out != None ):
 						try:
 							print "Sending answer on socket message..."
@@ -242,6 +282,7 @@ class daemon():
 							sock.send(s)
 						except:
 							self.rsocks.remove(sock)
+							del self.senders[sock]
 
  
 
